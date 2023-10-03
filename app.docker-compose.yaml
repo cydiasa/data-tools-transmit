@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  data-tools-transmission:
+    container_name: ${CONTAINER_NAME_PREFIX}-transmission
+    build:
+      dockerfile: Dockerfile
+    environment:
+      - DEBUG=${DT_DEBUG}
+      - PS5_IP=${DT_PS5_IP}
+      - INFLUXDB_V2_URL=${GF_INFLUXDB_URL}
+      - INFLUXDB_V2_ORG=${DOCKER_INFLUXDB_INIT_ORG}
+      - INFLUXDB_V2_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
+      - INFLUXDB_V2_BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
+    ports:
+      - 33739:33739/udp
+      - 33740:33740/udp
+    restart: unless-stopped

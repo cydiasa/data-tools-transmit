@@ -1,0 +1,71 @@
+version: '3.8'
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: ${CONTAINER_NAME_PREFIX}-influxdb
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${DOCKER_INFLUXDB_INIT_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${DOCKER_INFLUXDB_INIT_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${DOCKER_INFLUXDB_INIT_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
+      - DOCKER_INFLUXDB_INIT_RETENTION=${DOCKER_INFLUXDB_INIT_RETENTION}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
+    ports:
+      - 8083:8083
+      - 8086:8086
+      - 8090:8090
+      - 2003:2003
+    restart: unless-stopped
+
+  yq:
+    image: linuxserver/yq:3.2.3
+    container_name: ${CONTAINER_NAME_PREFIX}-yq-sidecar
+    command: sh /etc/grafana/provisioning/datasources/setup.sh ${GF_INFLUXDB_URL} ${DOCKER_INFLUXDB_INIT_ORG} ${DOCKER_INFLUXDB_INIT_BUCKET} ${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
+    volumes:
+      - grafana_volume:/etc/grafana/provisioning
+    restart: no
+    depends_on:
+      - influxdb
+
+  grafana:
+    image: grafana/grafana-oss:9.5.12
+    container_name: ${CONTAINER_NAME_PREFIX}-grafana
+    environment:
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,briangann-gauge-panel,natel-plotly-panel,grafana-simple-json-datasource,grafana-xyzchart-panel
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+    user: "0"
+    volumes:
+      - grafana_volume:/etc/grafana/provisioning
+    ports:
+      - 3000:3000
+    restart: unless-stopped
+    depends_on:
+      - yq
+
+  data-tools-transmission:
+    container_name: ${CONTAINER_NAME_PREFIX}-transmission
+    build:
+      dockerfile: Dockerfile
+    environment:
+      - DEBUG=${DT_DEBUG}
+      - PS5_IP=${DT_PS5_IP}
+      - INFLUXDB_V2_URL=${GF_INFLUXDB_URL}
+      - INFLUXDB_V2_ORG=${DOCKER_INFLUXDB_INIT_ORG}
+      - INFLUXDB_V2_TOKEN=${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
+      - INFLUXDB_V2_BUCKET=${DOCKER_INFLUXDB_INIT_BUCKET}
+    ports:
+      - 33739:33739/udp
+      - 33740:33740/udp
+    restart: unless-stopped
+    depends_on:
+      - grafana
+
+volumes:
+  grafana_volume:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ./config/grafana/
